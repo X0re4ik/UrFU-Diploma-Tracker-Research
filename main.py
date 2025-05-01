@@ -151,13 +151,35 @@ def calculate_idf1(gt_data, pred_data, iou_threshold=0.5):
     return idf1
 
 
+def calculate_total_gt(gt_data):
+    """
+    Вычисляет общее количество объектов в ground truth данных.
+
+    Параметры:
+        gt_data (dict): Данные GT в формате {frame_idx: [[[obj_id, bbox]], ...]},
+                        где bbox = [x1, y1, x2, y2].
+
+    Возвращает:
+        int: Общее количество объектов в GT.
+    """
+    total_gt = 0
+    for frame_idx, frame_objs in gt_data.items():
+        for obj_list in frame_objs:
+            if obj_list:  # Игнорируем пустые списки
+                total_gt += len(obj_list)
+    return total_gt
+
+
 def calculate_idf1_from_metrics(total_gt, fp, fn, idsw):
     idtp = total_gt - fn - idsw  # ID True Positives
-    idfp = fp                   # ID False Positives
-    idfn = fn                   # ID False Negatives
-    
-    idf1 = (2 * idtp) / (2 * idtp + idfp + idfn) if (2 * idtp + idfp + idfn) > 0 else 0.0
+    idfp = fp  # ID False Positives
+    idfn = fn  # ID False Negatives
+
+    idf1 = (
+        (2 * idtp) / (2 * idtp + idfp + idfn) if (2 * idtp + idfp + idfn) > 0 else 0.0
+    )
     return idf1
+
 
 def calculate_fp_fn_idsw(gt_data, pred_data, iou_threshold=0.5):
     """
@@ -221,23 +243,10 @@ def calculate_fp_fn_idsw(gt_data, pred_data, iou_threshold=0.5):
     return {"FP": FP, "FN": FN, "IDSW": IDSW}
 
 
-# === Параметры ===
-RESNET_MODEL_PATH = "resnet18_bpla-21-04-2025-13_45.pth"
-CLASSES = ["A22 Foxbat", "Bayraktar TB2", "UJ-22 Airborne", "Unknown"]
-
 # === Инициализация моделей ===
-model = YOLO("yolo-2025-04-20 11_18_07.386057.pt")
-resnet_model = torch.load(RESNET_MODEL_PATH, map_location=torch.device("cpu"))
-resnet_model.eval()
+model = YOLO("./YOLO/best.pt")
 
-# === Преобразование для ResNet18 ===
-resnet_transform = transforms.Compose(
-    [
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ]
-)
+TRACKER = "ByteTracker"
 
 # === Инициализация Deep SORT ===
 tracker = DeepSort(max_age=10, n_init=1, max_cosine_distance=0.6)
@@ -247,13 +256,11 @@ tracker = DeepSort(max_age=10, n_init=1, max_cosine_distance=0.6)
 import os
 
 DEMOS = [
-    "Demo5",
-    "Demo6",
+    "Demo1",
+    "Demo2",
 ]
-
-ANNOTAION_PATH = [os.path.join(f"./{demo}/Annotations/") for demo in DEMOS]
-
-VIDEO_PATH = [os.path.join(f"./{demo}/Video.mp4") for demo in DEMOS]
+ANNOTAION_PATH = [os.path.join(f"./Demos/{demo}/Annotations/") for demo in DEMOS]
+VIDEO_PATH = [os.path.join(f"./Demos/{demo}/Video.mp4") for demo in DEMOS]
 
 
 for video_path, annotaion_path in zip(ANNOTAION_PATH, VIDEO_PATH):
@@ -273,10 +280,9 @@ for video_path in VIDEO_PATH:
 
 assert len(ORIGINAL_SIZE) == len(ANNOTAION_PATH) == len(DEMOS)
 
-print(ORIGINAL_SIZE)
 
 video_name = f"{'-'.join(DEMOS)}.mp4"
-video_path = f"./{video_name}"
+video_path = f"./Videos/{video_name}"
 cap = cv2.VideoCapture(video_path)
 
 
@@ -287,7 +293,7 @@ NEW_FRAME_HEIGHT = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
 fourcc = cv2.VideoWriter_fourcc(*"mp4v")
 out = cv2.VideoWriter(
-    f"videos_output/{video_name}", fourcc, FPS, (NEW_FRAME_WIDTH, NEW_FRAME_HEIGHT)
+    f"results/{TRACKER}/{video_name}", fourcc, FPS, (NEW_FRAME_WIDTH, NEW_FRAME_HEIGHT)
 )
 
 
@@ -307,8 +313,6 @@ def parse_voc(xml_path: str, scale_x: int, scale_y: int):
         boxes.append((class_name, [xmin, ymin, xmax, ymax]))
     return boxes
 
-
-TRUE_COUNT = 2
 
 frame_idx = 0
 
@@ -411,39 +415,26 @@ while True:
     gt_data.append(data)
 
     cv2.imshow("Video with VOC", frame)
+    out.write(frame)
+
     if cv2.waitKey(25) & 0xFF == ord("q"):
         break
-    
+
     if frame_idx == 150:
         break
-    
+
     frame_idx += 1
 
-
-def calculate_total_gt(gt_data):
-    """
-    Вычисляет общее количество объектов в ground truth данных.
-    
-    Параметры:
-        gt_data (dict): Данные GT в формате {frame_idx: [[[obj_id, bbox]], ...]}, 
-                        где bbox = [x1, y1, x2, y2].
-    
-    Возвращает:
-        int: Общее количество объектов в GT.
-    """
-    total_gt = 0
-    for frame_idx, frame_objs in gt_data.items():
-        for obj_list in frame_objs:
-            if obj_list:  # Игнорируем пустые списки
-                total_gt += len(obj_list)
-    return total_gt
-
 print(f"MOTA: {calculate_mota(gt_data, processed_pred_data):.4f}")
-#print(f"IDF1: {calculate_idf1(gt_data_idf1, pred_data_idf1):.4f}")
+# print(f"IDF1: {calculate_idf1(gt_data_idf1, pred_data_idf1):.4f}")
 result = calculate_fp_fn_idsw(gt_data_idf1, pred_data_idf1)
 print(f"ЫВАЫОВА: {result}")
 # {'FP': 4, 'FN': 0, 'IDSW': 1}
-print(calculate_idf1_from_metrics(calculate_total_gt(gt_data_idf1), result["FP"], result["FN"], result["IDSW"]))
+print(
+    calculate_idf1_from_metrics(
+        calculate_total_gt(gt_data_idf1), result["FP"], result["FN"], result["IDSW"]
+    )
+)
 
 cap.release()
 cv2.destroyAllWindows()
