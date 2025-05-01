@@ -1,0 +1,32 @@
+[
+    {
+        "VideoName": "Demo3-Demo4.mp4",
+        "countFrames": 150,
+        "trackrer": {
+            "DeepSort": {
+                "results": {
+                    "FP": 29,
+                    "FN": 17,
+                    "IDSW": 0,
+                    "MOTA": 0.5490,
+                    "IDF1": 0.7870370370370371
+                }
+            }
+        }
+    },
+    {
+        "VideoName": "Demo3-Demo4.mp4",
+        "countFrames": 150,
+        "trackrer": {
+            "DeepSort": {
+                "results": {
+                    "FP": 76,
+                    "FN": 18,
+                    "IDSW": 2,
+                    "MOTA": -0.8431,
+                    "IDF1": 0.3974358974358974
+                }
+            }
+        }
+    }
+]
